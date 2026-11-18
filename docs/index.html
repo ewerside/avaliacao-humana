@@ -6,6 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
 <title>Avaliação</title>
+<link rel="icon" href="data:,">
 <style>
 :root {
   --bg: #f6f7f9; --card: #ffffff; --tx: #16181d; --tx2: #5b6270; --linha: #dfe3ea;
@@ -46,7 +47,7 @@ button:disabled { opacity: .55; cursor: default; }
 /* painéis */
 .pergunta { font-size: 19px; font-weight: 600; margin: 6px 0 10px; }
 .texto { white-space: pre-wrap; }
-.paineis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.paineis { display: grid; grid-template-columns: repeat(var(--np, 2), minmax(0, 1fr)); gap: 10px; }
 .painel { background: var(--card); border: 1px solid var(--linha); border-radius: var(--raio); padding: 8px; min-width: 0; }
 .rotulo { font-size: 13px; font-weight: 600; color: var(--tx2); text-transform: uppercase; letter-spacing: .03em; margin: 2px 4px 6px; }
 .imgbox { position: relative; background: #00000010; border-radius: 10px; display: flex; align-items: center; justify-content: center;
@@ -55,14 +56,25 @@ button:disabled { opacity: .55; cursor: default; }
 .imgbox .lupa { position: absolute; right: 6px; bottom: 6px; background: #000a; color: #fff; font-size: 12px; border-radius: 8px; padding: 2px 7px; }
 .painel .texto, .opcao .texto { padding: 6px 4px; max-height: 40vh; overflow: auto; }
 @media (max-width: 640px) {
-  .paineis { grid-template-columns: 1fr; gap: 8px; }
+  main { padding: 8px 10px 150px; }
+  .pergunta { font-size: 16px; margin: 2px 0 6px; line-height: 1.3; }
+  .paineis { grid-template-columns: 1fr; gap: 6px; }
+  .painel { padding: 4px 6px 6px; }
+  .rotulo { margin: 0 2px 3px; font-size: 12px; }
   .imgbox { height: 30vh; }
+  /* par: as duas imagens cabem juntas acima dos botões, sem rolar */
+  .par .imgbox { height: max(140px, calc((100svh - 330px) / 2)); }
   .ab .imgbox, .escolha .imgbox { height: 26vh; }
+  .botoes button { font-size: 15px; padding: 8px 6px; min-height: 52px; }
+  .rodape { padding-top: 8px; }
+  .extras button.link { min-height: 34px; padding: 4px 6px; }
 }
 /* opções clicáveis (escolha) */
 .opcoes { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .opcao { text-align: left; padding: 8px; display: block; width: 100%; }
 .opcao.sel, .botoes button.sel { background: var(--sel); border-color: var(--pri); }
+.opcao .escolher { width: 100%; margin-top: 8px; font-weight: 600; }
+.opcao .escolher.sel { background: var(--pri); color: var(--pri-tx); }
 .num { display: inline-block; font-weight: 700; background: var(--pri); color: var(--pri-tx); border-radius: 8px; padding: 0 8px; margin: 2px 4px 6px; }
 /* botões de resposta */
 .rodape { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--bg); border-top: 1px solid var(--linha);
@@ -82,7 +94,8 @@ button:disabled { opacity: .55; cursor: default; }
 .certo { outline: 3px solid var(--ok); }
 /* zoom */
 #zoom { position: fixed; inset: 0; z-index: 20; background: #000e; display: none; overflow: auto; touch-action: pan-x pan-y pinch-zoom; }
-#zoom.aberto { display: block; }
+#zoom.aberto { display: flex; align-items: center; justify-content: center; }
+#zoom.aberto.grande { display: block; }
 #zoom img { display: block; margin: auto; max-width: 100vw; max-height: 100vh; cursor: zoom-in; }
 #zoom.grande img { max-width: none; max-height: none; width: auto; min-width: 200vw; cursor: zoom-out; }
 #zoom .fechar { position: fixed; top: 10px; right: 10px; z-index: 21; background: #fff; color: #000; min-height: 44px; border-radius: 99px; }
@@ -258,7 +271,7 @@ function conteudoItem(it, opts) {
   if (it.texto) corpo.append(el('div', { class: 'card texto' }, it.texto));
   const pn = (it.paineis || []);
   if (pn.length) {
-    const g = el('div', { class: 'paineis' });
+    const g = el('div', { class: 'paineis', style: '--np:' + Math.min(pn.length, 2) });
     pn.forEach((p, i) => g.append(el('div', { class: 'painel' },
       el('div', { class: 'rotulo' }, p.rotulo || (pn.length === 2 ? (i === 0 ? 'Esquerda' : 'Direita') : 'Imagem ' + (i + 1))),
       imagem(p, p.rotulo), p.texto ? el('div', { class: 'texto' }, p.texto) : null)));
@@ -275,10 +288,12 @@ function conteudoItem(it, opts) {
     const g = el('div', { class: 'opcoes' });
     ops.forEach((o, i) => {
       const valor = String(i + 1);
-      const b = el('div', { class: 'card opcao' + (opts.marcada === valor ? ' sel' : ''), role: 'button', tabindex: '0',
-        onclick: (ev) => { if (ev.target.closest('.imgbox')) return; if (opts.aoEscolher) opts.aoEscolher({ valor }); },
-        onkeydown: (ev) => { if (ev.key === 'Enter' && opts.aoEscolher) opts.aoEscolher({ valor }); } },
-        el('span', { class: 'num' }, valor), imagem(o, 'Opção ' + valor), o.texto ? el('div', { class: 'texto' }, o.texto) : null);
+      // a imagem amplia; escolher é sempre pelo botão (ou pela tecla do número)
+      const b = el('div', { class: 'card opcao' + (opts.marcada === valor ? ' sel' : '') },
+        el('span', { class: 'num' }, valor), imagem(o, 'Opção ' + valor), o.texto ? el('div', { class: 'texto' }, o.texto) : null,
+        opts.exemplo ? null : el('button', { type: 'button', class: 'escolher' + (opts.marcada === valor ? ' sel' : ''),
+          onclick: () => opts.aoEscolher && opts.aoEscolher({ valor }) }, 'Escolher ' + valor,
+          toque ? null : el('span', { class: 'tecla' }, valor)));
       g.append(b);
     });
     corpo.append(g);
