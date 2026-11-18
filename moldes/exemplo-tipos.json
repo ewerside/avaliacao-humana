@@ -1,0 +1,54 @@
+{
+  "_nota": "Molde de exemplo com dados falsos (formas geométricas). Mostra os quatro tipos de pergunta, controles e repetições.",
+  "teste": "exemplo-tipos",
+  "projeto": "avaliacao-humana",
+  "titulo": "Exemplo: formas e cores",
+  "introducao": [
+    "Você vai ver duas imagens lado a lado e dizer se mostram a mesma forma com a mesma cor.",
+    "Detalhes pequenos, como um furo, contam: se houver diferença, a resposta é Não.",
+    "Se a imagem não deixar decidir, escolha Não dá para saber."
+  ],
+  "tipo": "par",
+  "pergunta": "A imagem da direita mostra a mesma forma, da mesma cor, que a da esquerda?",
+  "rotulos_paineis": ["Referência", "Para comparar"],
+  "exemplo": {
+    "paineis": [{"midia": {"arquivo": "exemplo/circulo_vermelho.jpg"}}, {"midia": {"arquivo": "exemplo/circulo_vermelho_2.jpg"}}],
+    "resposta": "sim",
+    "explicacao": "As duas são círculos vermelhos; o fundo diferente não importa."
+  },
+  "config": {"distancia_repeticao": 3},
+  "analise": {
+    "ia": {"campo": "veredito_ia", "nome": "juiz de exemplo", "mapa": {"mesmo": "sim", "diferente": "nao", "incerto": "nao_sei"},
+           "positivo_ia": "mesmo", "positivo_pessoa": "sim"},
+    "estrato": {"campo": "veredito_ia", "populacao": {"mesmo": 50, "incerto": 20, "diferente": 30}}
+  },
+  "itens": [
+    {"id": "P01", "paineis": [{"midia": {"arquivo": "exemplo/quadrado_azul.jpg"}}, {"midia": {"arquivo": "exemplo/quadrado_azul_furo.jpg"}}],
+     "oculto": {"veredito_ia": "mesmo", "origem": "furo pequeno"}, "repetir": true},
+    {"id": "P02", "paineis": [{"midia": {"arquivo": "exemplo/circulo_vermelho.jpg"}}, {"midia": {"arquivo": "exemplo/circulo_laranja.jpg"}}],
+     "oculto": {"veredito_ia": "incerto"}},
+    {"id": "P03", "paineis": [{"midia": {"arquivo": "exemplo/triangulo_verde.jpg"}}, {"midia": {"arquivo": "exemplo/quadrado_azul.jpg"}}],
+     "oculto": {"veredito_ia": "diferente"}},
+    {"id": "C01", "paineis": [{"midia": {"arquivo": "exemplo/triangulo_verde.jpg"}}, {"midia": {"arquivo": "exemplo/triangulo_verde.jpg"}}],
+     "controle": "sim"},
+    {"id": "A01", "tipo": "ab", "pergunta": "Qual descrição combina melhor com a imagem?",
+     "paineis": [{"rotulo": "Imagem", "midia": {"arquivo": "exemplo/circulo_laranja.jpg"}}],
+     "opcoes": [{"id": "modelo1", "texto": "Um círculo laranja sobre fundo claro.", "oculto": {"origem": "modelo 1"}},
+                {"id": "modelo2", "texto": "Uma bola de basquete numa quadra.", "oculto": {"origem": "modelo 2"}}],
+     "repetir": true},
+    {"id": "E01", "tipo": "escolha", "pergunta": "Qual destas imagens é igual à referência?",
+     "paineis": [{"rotulo": "Referência", "midia": {"arquivo": "exemplo/quadrado_azul.jpg"}}],
+     "opcoes": [{"id": "o1", "midia": {"arquivo": "exemplo/quadrado_azul_furo.jpg"}},
+                {"id": "o2", "midia": {"arquivo": "exemplo/quadrado_azul.jpg"}},
+                {"id": "o3", "midia": {"arquivo": "exemplo/triangulo_verde.jpg"}}],
+     "oculto": {"gabarito": "o2"}},
+    {"id": "N01", "tipo": "nota", "pergunta": "Quanto esta descrição combina com a imagem?",
+     "texto": "\"Um triângulo verde, apontando para cima.\"",
+     "paineis": [{"rotulo": "Imagem", "midia": {"arquivo": "exemplo/triangulo_verde.jpg"}}],
+     "escala": {"min": "Nada", "max": "Perfeitamente"}},
+    {"id": "P04", "paineis": [{"midia": {"arquivo": "exemplo/circulo_vermelho.jpg"}}, {"midia": {"arquivo": "exemplo/circulo_vermelho_2.jpg"}}],
+     "oculto": {"veredito_ia": "mesmo"}},
+    {"id": "P05", "paineis": [{"midia": {"arquivo": "exemplo/quadrado_azul.jpg"}}, {"texto": "Um quadrado azul liso."}],
+     "oculto": {"veredito_ia": "mesmo"}}
+  ]
+}
