@@ -28,6 +28,33 @@ def test_erros_comuns():
         assert trecho in texto
 
 
+def _categorias_como_escolha():
+    ops = [{"id": "mesmo", "texto": "Mesmo modelo"}, {"id": "parecido", "texto": "Parecido"}, {"id": "outro", "texto": "Outro"}]
+    return {"teste": "categorias-teste", "titulo": "t", "introducao": ["a", "b"], "tipo": "escolha",
+            "exemplo": {"paineis": [{"texto": "p"}, {"texto": "a"}], "resposta": "parecido"},
+            "itens": [{"id": f"I{n}", "paineis": [{"texto": "p"}, {"texto": "a"}], "opcoes": copy.deepcopy(ops)} for n in range(3)]}
+
+
+def test_categorias_fixas_nao_vao_como_escolha():
+    erros, _ = spec.validar(_categorias_como_escolha())
+    texto = " | ".join(erros)
+    assert "respostas fixas" in texto              # opções iguais em todos os itens
+    assert "exemplo: resposta 'parecido'" in texto  # exemplo sem a resposta na tela
+
+
+def test_categorias_fixas_como_botoes_do_par():
+    s = _categorias_como_escolha()
+    s["tipo"] = "par"
+    s["botoes"] = [{"valor": "mesmo", "rotulo": "Mesmo modelo"}, {"valor": "parecido", "rotulo": "Parecido"},
+                   {"valor": "outro", "rotulo": "Outro produto"}, {"valor": "nao_sei", "rotulo": "Não sei"}]
+    for it in s["itens"]:
+        it.pop("opcoes")
+    erros, _ = spec.validar(s)
+    assert erros == []
+    s["botoes"].append({"valor": "mesmo", "rotulo": "de novo"})
+    assert any("valores repetidos" in e for e in spec.validar(s)[0])
+
+
 def test_resolver_nao_vaza_oculto_no_publico():
     s = molde()
     ids = {id(m): f"00000000-0000-0000-0000-{n:012d}" for n, m in enumerate(spec.midias(s))}

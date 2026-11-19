@@ -11,11 +11,11 @@
 :root {
   --bg: #f6f7f9; --card: #ffffff; --tx: #16181d; --tx2: #5b6270; --linha: #dfe3ea;
   --pri: #2453d6; --pri-tx: #ffffff; --ok: #1d7f45; --nao: #b3261e; --neutro: #6b7280;
-  --sel: #e8eefc; --raio: 14px;
+  --sel: #e8eefc; --raio: 14px; --ex: #9a6700; --ex-bg: #fff8e1;
 }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #0f1115; --card: #181b21; --tx: #eef0f4; --tx2: #a3aab7; --linha: #2b3039;
-          --pri: #6d93ff; --pri-tx: #0b0d12; --sel: #1f2a44; }
+          --pri: #6d93ff; --pri-tx: #0b0d12; --sel: #1f2a44; --ex: #e3b341; --ex-bg: #2a2412; }
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--tx);
@@ -55,6 +55,7 @@ button:disabled { opacity: .55; cursor: default; }
 .imgbox img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
 .imgbox .lupa { position: absolute; right: 6px; bottom: 6px; background: #000a; color: #fff; font-size: 12px; border-radius: 8px; padding: 2px 7px; }
 .painel .texto, .opcao .texto { padding: 6px 4px; max-height: 40vh; overflow: auto; }
+.texto a, .card a { color: var(--pri); overflow-wrap: anywhere; }
 @media (max-width: 640px) {
   main { padding: 8px 10px 150px; }
   .pergunta { font-size: 16px; margin: 2px 0 6px; line-height: 1.3; }
@@ -71,7 +72,8 @@ button:disabled { opacity: .55; cursor: default; }
 }
 /* opções clicáveis (escolha) */
 .opcoes { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-.opcao { text-align: left; padding: 8px; display: block; width: 100%; }
+.opcao { text-align: left; padding: 8px; display: block; width: 100%; cursor: pointer; }
+.opcao:hover { border-color: var(--pri); }
 .opcao.sel, .botoes button.sel { background: var(--sel); border-color: var(--pri); }
 .opcao .escolher { width: 100%; margin-top: 8px; font-weight: 600; }
 .opcao .escolher.sel { background: var(--pri); color: var(--pri-tx); }
@@ -89,9 +91,22 @@ button:disabled { opacity: .55; cursor: default; }
 .extras { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
 .escala-rot { display: flex; justify-content: space-between; font-size: 13px; color: var(--tx2); margin-bottom: 4px; }
 @media (max-width: 640px) { .botoes.muitos { grid-template-columns: 1fr 1fr; } }
-/* exemplo */
-.exemplo .botoes button { pointer-events: none; }
+/* exemplo: não é pergunta, não clica */
+.exemplo { border: 2px dashed var(--ex); background: var(--ex-bg); }
+.selo { display: inline-block; background: var(--ex); color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .04em;
+  border-radius: 99px; padding: 2px 10px; margin: 0 0 6px; }
+.exemplo .botoes button, .exemplo .opcao { pointer-events: none; cursor: default; }
+.exemplo .botoes button:not(.certo) { opacity: .4; }
 .certo { outline: 3px solid var(--ok); }
+.marca-certo { display: block; font-size: 12px; font-weight: 700; color: var(--ok); margin-top: 2px; }
+.exemplo .botoes button.certo .marca-certo { color: inherit; }
+/* comentário e situação do envio */
+.comentario { margin-top: 14px; }
+.comentario label { display: block; font-weight: 600; margin-bottom: 4px; }
+.comentario .sub { margin: 0 0 6px; font-size: 14px; }
+.situacao { font-size: 14px; margin: 0 0 6px; }
+.situacao:empty { display: none; }
+.extras .comentar { border: 1px solid var(--linha); border-radius: 10px; min-height: 40px; padding: 6px 12px; text-decoration: none; color: var(--tx); }
 /* zoom */
 #zoom { position: fixed; inset: 0; z-index: 20; background: #000e; display: none; overflow: auto; touch-action: pan-x pan-y pinch-zoom; }
 #zoom.aberto { display: flex; align-items: center; justify-content: center; }
@@ -148,12 +163,36 @@ function el(tag, attrs, ...filhos) {
   return e;
 }
 function urlMidia(caminho) { return C.url + '/storage/v1/object/public/' + C.bucket + '/' + caminho.split('/').map(encodeURIComponent).join('/'); }
-async function rpc(fn, args) {
-  const r = await fetch(C.url + '/rest/v1/rpc/' + fn, {
-    method: 'POST', headers: { apikey: C.chave, 'Content-Type': 'application/json' }, body: JSON.stringify(args)
-  });
-  if (!r.ok) throw new Error('Falha de conexão (' + r.status + ').');
-  return r.json();
+async function rpc(fn, args, prazoMs) {
+  // prazo: sem ele, uma conexão parada deixa a tela esperando para sempre
+  const ctl = new AbortController();
+  const tm = setTimeout(() => ctl.abort(), prazoMs || 20000);
+  try {
+    const r = await fetch(C.url + '/rest/v1/rpc/' + fn, {
+      method: 'POST', headers: { apikey: C.chave, 'Content-Type': 'application/json' }, body: JSON.stringify(args), signal: ctl.signal
+    });
+    if (!r.ok) throw new Error('Falha de conexão (' + r.status + ').');
+    return await r.json();
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('A conexão demorou demais.');
+    if (e instanceof TypeError) throw new Error('Sem conexão.');
+    throw e;
+  } finally { clearTimeout(tm); }
+}
+// texto com endereços http(s) clicáveis, abrindo em outra aba
+const RE_URL = /https?:\/\/[^\s<>"']+/g;
+function comLinks(s) {
+  const frag = document.createDocumentFragment();
+  s = String(s); let i = 0;
+  for (const m of s.matchAll(RE_URL)) {
+    let u = m[0];
+    const sobra = u.match(/[.,;:!?)\]]+$/);
+    if (sobra) u = u.slice(0, -sobra[0].length);
+    frag.append(s.slice(i, m.index), el('a', { href: u, target: '_blank', rel: 'noopener noreferrer' }, u));
+    i = m.index + u.length;
+  }
+  frag.append(s.slice(i));
+  return frag;
 }
 function limpar() { app.replaceChildren(); rodape.classList.add('oculto'); rodapeDentro.replaceChildren(); teclas = null; window.scrollTo(0, 0); }
 function erroTela(msg, tentar) {
@@ -268,32 +307,36 @@ function conteudoItem(it, opts) {
   // opts: {exemplo, aoEscolherOpcao(valor), marcada}
   const corpo = el('div', { class: it.tipo });
   if (it.pergunta) corpo.append(el('div', { class: 'pergunta' }, it.pergunta));
-  if (it.texto) corpo.append(el('div', { class: 'card texto' }, it.texto));
+  if (it.texto) corpo.append(el('div', { class: 'card texto' }, comLinks(it.texto)));
   const pn = (it.paineis || []);
   if (pn.length) {
     const g = el('div', { class: 'paineis', style: '--np:' + Math.min(pn.length, 2) });
     pn.forEach((p, i) => g.append(el('div', { class: 'painel' },
       el('div', { class: 'rotulo' }, p.rotulo || (pn.length === 2 ? (i === 0 ? 'Esquerda' : 'Direita') : 'Imagem ' + (i + 1))),
-      imagem(p, p.rotulo), p.texto ? el('div', { class: 'texto' }, p.texto) : null)));
+      imagem(p, p.rotulo), p.texto ? el('div', { class: 'texto' }, comLinks(p.texto)) : null)));
     corpo.append(g);
   }
   const ops = it.opcoes || [];
   if (it.tipo === 'ab' && ops.length) {
     const g = el('div', { class: 'paineis' });
     ops.forEach((o, i) => g.append(el('div', { class: 'painel' },
-      el('div', { class: 'rotulo' }, i === 0 ? 'A' : 'B'), imagem(o, i === 0 ? 'A' : 'B'), o.texto ? el('div', { class: 'texto' }, o.texto) : null)));
+      el('div', { class: 'rotulo' }, i === 0 ? 'A' : 'B'), imagem(o, i === 0 ? 'A' : 'B'), o.texto ? el('div', { class: 'texto' }, comLinks(o.texto)) : null)));
     corpo.append(g);
   }
   if (it.tipo === 'escolha' && ops.length) {
     const g = el('div', { class: 'opcoes' });
     ops.forEach((o, i) => {
       const valor = String(i + 1);
-      // a imagem amplia; escolher é sempre pelo botão (ou pela tecla do número)
-      const b = el('div', { class: 'card opcao' + (opts.marcada === valor ? ' sel' : '') },
-        el('span', { class: 'num' }, valor), imagem(o, 'Opção ' + valor), o.texto ? el('div', { class: 'texto' }, o.texto) : null,
-        opts.exemplo ? null : el('button', { type: 'button', class: 'escolher' + (opts.marcada === valor ? ' sel' : ''),
-          onclick: () => opts.aoEscolher && opts.aoEscolher({ valor }) }, 'Escolher ' + valor,
-          toque ? null : el('span', { class: 'tecla' }, valor)));
+      const certo = opts.exemplo && opts.certo != null && (opts.certo === o.id || opts.certo === valor);
+      const marcada = !opts.exemplo && opts.marcada === valor;
+      const escolher = () => opts.aoEscolher && opts.aoEscolher({ valor });
+      // o cartão inteiro escolhe; a imagem amplia e o link abre o anúncio
+      const b = el('div', { class: 'card opcao' + (marcada ? ' sel' : '') + (certo ? ' certo' : ''),
+          onclick: opts.exemplo ? null : (ev) => { if (!ev.target.closest('.imgbox, a, button')) escolher(); } },
+        el('span', { class: 'num' }, valor), certo ? el('span', { class: 'marca-certo' }, '✓ resposta certa') : null,
+        imagem(o, 'Opção ' + valor), o.texto ? el('div', { class: 'texto' }, comLinks(o.texto)) : null,
+        opts.exemplo ? null : el('button', { type: 'button', class: 'escolher' + (marcada ? ' sel' : ''), onclick: escolher },
+          'Escolher ' + valor, toque ? null : el('span', { class: 'tecla' }, valor)));
       g.append(b);
     });
     corpo.append(g);
@@ -309,10 +352,11 @@ function linhaBotoes(it, opts) {
   const g = el('div', { class: 'botoes' + (bs.length > 3 ? ' muitos' : ''), style: '--n:' + bs.length });
   for (const b of bs) {
     const marcado = (b.nota != null && opts.notaMarcada === b.nota) || (b.valor != null && opts.marcada === b.valor);
-    const certo = opts.certo != null && (b.valor === opts.certo || String(b.nota) === String(opts.certo));
+    const certo = opts.certo != null && ((b.valor != null && b.valor === opts.certo) || (b.nota != null && String(b.nota) === String(opts.certo)));
     g.append(el('button', { type: 'button', class: (b.classe || '') + (marcado ? ' sel' : '') + (certo ? ' certo sel' : ''),
       onclick: () => opts.aoEscolher && opts.aoEscolher(b) },
-      b.rotulo, (!opts.exemplo && b.teclas) ? el('span', { class: 'tecla' }, b.teclas[0].toUpperCase()) : null));
+      b.rotulo, (!opts.exemplo && b.teclas) ? el('span', { class: 'tecla' }, b.teclas[0].toUpperCase()) : null,
+      certo ? el('span', { class: 'marca-certo' }, '✓ resposta certa') : null));
   }
   caixa.append(g);
   return { caixa, bs };
@@ -323,7 +367,8 @@ function telaIntro() {
   const T = D.teste || {};
   const resp = D.itens.filter(i => i.resposta).length;
   const card = el('div', { class: 'card' }, el('h1', {}, T.titulo || 'Avaliação'));
-  for (const f of (Array.isArray(T.introducao) ? T.introducao : [T.introducao]).filter(Boolean)) card.append(el('p', {}, f));
+  for (const f of (Array.isArray(T.introducao) ? T.introducao : [T.introducao]).filter(Boolean)) card.append(el('p', {}, comLinks(f)));
+  if (T.comentario !== false) card.append(el('p', {}, 'Cada tela tem um campo de comentário opcional, embaixo do conteúdo: use para dúvida, erro ou algo confuso.'));
   card.append(el('p', { class: 'sub' }, D.itens.length + ' perguntas' + (T.tempo_min ? ', cerca de ' + T.tempo_min + ' minutos' : '') +
     '. Uma por tela. Dá para parar e voltar pelo mesmo link.'));
   if (!toque) card.append(el('p', { class: 'sub' }, 'No computador, use as teclas mostradas nos botões. Enter amplia a imagem selecionada; Esc fecha.'));
@@ -331,9 +376,13 @@ function telaIntro() {
   if (T.exemplo) {
     const ex = T.exemplo;
     const it = { tipo: ex.tipo || T.tipo || 'par', pergunta: ex.pergunta || T.pergunta, texto: ex.texto, paineis: ex.paineis, opcoes: ex.opcoes, escala: ex.escala || T.escala };
-    const caixa = el('div', { class: 'card exemplo' }, el('h2', {}, 'Exemplo resolvido'), conteudoItem(it, { exemplo: true, marcada: ex.resposta }));
+    const caixa = el('div', { class: 'card exemplo', 'aria-label': 'Exemplo já respondido' },
+      el('span', { class: 'selo' }, 'EXEMPLO · NÃO CONTA'),
+      el('h2', {}, 'Um caso já respondido, só para ler'),
+      el('p', { class: 'sub' }, 'Não precisa clicar aqui. As perguntas de verdade começam quando você tocar em Começar.'),
+      conteudoItem(it, { exemplo: true, certo: ex.resposta }));
     caixa.append(el('div', { style: 'margin-top:10px' }, linhaBotoes(it, { exemplo: true, certo: ex.resposta }).caixa));
-    if (ex.explicacao) caixa.append(el('p', {}, el('strong', {}, 'Por quê: '), ex.explicacao));
+    if (ex.explicacao) caixa.append(el('p', {}, el('strong', {}, 'Por quê: '), comLinks(ex.explicacao)));
     app.append(caixa);
   }
   const inicio = el('button', { class: 'pri largo', type: 'button', onclick: () => { atual = primeiraPendente(); telaPergunta(); } },
@@ -353,48 +402,59 @@ function telaPergunta() {
   app.append(el('div', { class: 'topo' }, el('div', { class: 'barra' }, el('div', { style: 'width:' + (100 * feitas / n).toFixed(1) + '%' })),
     el('div', { class: 'cont' }, el('span', {}, 'Pergunta ' + (atual + 1) + ' de ' + n), el('span', {}, feitas + ' respondidas'))));
   const r = it.resposta || {};
-  const coment = el('textarea', { maxlength: '2000', placeholder: 'Comentário (opcional)', 'aria-label': 'Comentário' });
+  const comComent = D.teste.comentario !== false;
+  const coment = el('textarea', { id: 'coment', maxlength: '2000', placeholder: 'Dúvida, erro ou algo confuso nesta tela? Escreva aqui.' });
   coment.value = r.comentario || '';
-  const caixaComent = el('div', { class: r.comentario ? '' : 'oculto', style: 'margin-top:10px' }, coment);
-  const msg = el('p', { class: 'erro oculto' });
-  const escolher = (b) => responder(it, b, coment.value, msg);
-  app.append(conteudoItem(it, { aoEscolher: escolher, marcada: r.exibida }), caixaComent, msg);
+  const caixaComent = comComent ? el('div', { class: 'card comentario' },
+    el('label', { for: 'coment' }, 'Comentário (opcional)'),
+    el('p', { class: 'sub' }, 'Vai junto com a resposta, quando você escolher.'), coment) : null;
+  const situacao = el('p', { class: 'situacao', role: 'status', 'aria-live': 'polite' });
+  const escolher = (b) => responder(it, b, coment.value, situacao);
+  app.append(conteudoItem(it, { aoEscolher: escolher, marcada: r.exibida }), caixaComent);
   const { caixa, bs } = linhaBotoes(it, { aoEscolher: escolher, marcada: r.exibida, notaMarcada: r.nota });
+  const irComent = () => { caixaComent.scrollIntoView({ block: 'center', behavior: 'smooth' }); coment.focus({ preventScroll: true }); };
   const extras = el('div', { class: 'extras' },
     atual > 0 ? el('button', { class: 'link', type: 'button', onclick: () => { atual--; telaPergunta(); } }, '← Voltar') : el('span'),
-    D.teste.comentario === false ? el('span') :
-      el('button', { class: 'link', type: 'button', onclick: () => { caixaComent.classList.toggle('oculto'); if (!caixaComent.classList.contains('oculto')) coment.focus(); } },
-        'Comentar' + (toque ? '' : ' (C)')));
-  rodapeDentro.append(caixa, extras); rodape.classList.remove('oculto');
+    comComent ? el('button', { class: 'link comentar', type: 'button', onclick: irComent }, '✎ Comentar' + (toque ? '' : ' (C)')) : el('span'));
+  rodapeDentro.append(situacao, caixa, extras); rodape.classList.remove('oculto');
   teclas = {};
   for (const b of bs) for (const k of (b.teclas || [])) teclas[k.toLowerCase()] = () => escolher(b);
   if (it.tipo === 'escolha') (it.opcoes || []).forEach((o, i) => { teclas[String(i + 1)] = () => escolher({ valor: String(i + 1) }); });
-  teclas.c = () => { caixaComent.classList.remove('oculto'); coment.focus(); };
+  if (comComent) teclas.c = irComent;
   teclas.arrowleft = () => { if (atual > 0) { atual--; telaPergunta(); } };
   t0 = performance.now();
   preCarregar(atual);
 }
 
-async function responder(it, b, comentario, msg) {
+async function responder(it, b, comentario, situacao) {
   if (ocupado) return;
   ocupado = true;
+  const botoes = [...document.querySelectorAll('.botoes button, .opcao .escolher')];
+  botoes.forEach(x => { x.disabled = true; });
+  situacao.className = 'situacao sub'; situacao.textContent = 'Salvando…';
   const ms = Math.min(86400000, Math.round(performance.now() - t0));
   const args = { p_sessao: sessao, p_pos: it.pos, p_escolha: b.valor != null ? b.valor : null, p_nota: b.nota != null ? b.nota : null,
                  p_comentario: comentario || null, p_ms: ms };
   try {
-    const r = await rpc('av_responder', args);
+    const r = await rpc('av_responder', args, 15000);
     if (!r.ok) throw new Error(r.erro || 'Não foi possível salvar.');
-    it.resposta = { exibida: args.p_escolha, nota: args.p_nota, comentario: args.p_comentario };
+  } catch (e) {
     ocupado = false;
-    const prox = D.itens.findIndex((x, k) => k > atual && !x.resposta);
-    const qualquer = D.itens.findIndex(x => !x.resposta);
+    botoes.forEach(x => { x.disabled = false; });
+    situacao.className = 'situacao erro';
+    situacao.textContent = (e.message || 'Erro.') + ' A resposta pode não ter sido salva: toque de novo.';
+    return;
+  }
+  it.resposta = { exibida: args.p_escolha, nota: args.p_nota, comentario: args.p_comentario };
+  ocupado = false;
+  const prox = D.itens.findIndex((x, k) => k > atual && !x.resposta);
+  const qualquer = D.itens.findIndex(x => !x.resposta);
+  try {
     if (prox >= 0) { atual = prox; telaPergunta(); }
     else if (qualquer >= 0) { atual = qualquer; telaPergunta(); }
     else await telaFim();
   } catch (e) {
-    ocupado = false;
-    msg.textContent = (e.message || 'Erro') + ' Sua resposta não foi salva; toque de novo.';
-    msg.classList.remove('oculto');
+    erroTela('A resposta foi salva, mas a próxima tela falhou ao abrir (' + (e.message || e) + ').', carregar);
   }
 }
 

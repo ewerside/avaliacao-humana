@@ -4,6 +4,15 @@ O molde é um JSON. Campos de topo:
   teste (slug), projeto, titulo, introducao (lista de 2 a 4 frases), tempo_min, tipo (par|ab|escolha|nota),
   pergunta, botoes (só par; padrão Sim/Não/Não dá para saber), rotulos_paineis, exemplo, comentario (bool),
   fim, config {distancia_repeticao}, analise {...}, itens [...]
+Qual tipo usar:
+  par      dois painéis (imagem e/ou texto) e respostas fixas, em ordem fixa no rodapé. Categorias como
+           "mesmo / parecido / outro / não sei" são `botoes` [{valor, rotulo, tecla}] do tipo par, nunca opções de escolha.
+  ab       duas saídas para comparar; os lados são sorteados por pessoa.
+  escolha  N saídas diferentes por item para escolher a melhor; a ordem é sorteada por pessoa (só faz sentido
+           quando as opções são candidatas a comparar, não respostas fixas).
+  nota     escala de 1 a 5.
+Exemplo: {tipo?, pergunta?, texto?, paineis, opcoes? (só texto), resposta (uma resposta possível), explicacao}.
+Endereços http(s) nos textos viram links que abrem em outra aba.
 Item:
   id, tipo (opcional, sobrepõe o do topo), pergunta, texto, paineis [{rotulo, texto, midia}],
   opcoes [{id, texto, midia, oculto}] (ab: 2; escolha: 2 ou mais), escala {min, max} (nota),
@@ -89,7 +98,14 @@ def validar(s):
         erros.append("itens: lista não vazia")
         return erros, avisos
     ids = set()
-    valores_par = {b["valor"] for b in (s.get("botoes") or BOTOES_PAR)}
+    bts = s.get("botoes") or BOTOES_PAR
+    if not isinstance(bts, list) or any(not isinstance(b, dict) or not b.get("valor") or not b.get("rotulo") for b in bts):
+        erros.append("botoes: lista de {valor, rotulo, tecla opcional}")
+        bts = BOTOES_PAR
+    valores_par = [b["valor"] for b in bts]
+    if len(set(valores_par)) != len(valores_par):
+        erros.append("botoes: valores repetidos")
+    valores_par = set(valores_par)
     for n, it in enumerate(itens, 1):
         onde = f"item {it.get('id', n)}"
         for k in it:
@@ -136,6 +152,12 @@ def validar(s):
         oc = it.get("oculto")
         if oc is not None and not isinstance(oc, dict):
             erros.append(f"{onde}: oculto deve ser objeto")
+    escolhas = [it for it in itens if (it.get("tipo") or tipo_topo) == "escolha"]
+    if len(escolhas) >= 2:
+        assinaturas = {tuple((o.get("id"), o.get("texto")) for o in (it.get("opcoes") or [])) for it in escolhas}
+        if len(assinaturas) == 1:
+            erros.append("escolha: as opções são as mesmas em todos os itens, ou seja, respostas fixas. Use tipo par com "
+                         "'botoes' (ordem fixa, no rodapé); escolha sorteia a ordem e serve para comparar saídas diferentes")
     n_rep = sum(1 for it in itens if it.get("repetir"))
     n_ctl = sum(1 for it in itens if it.get("controle") is not None)
     total = len(itens) + n_rep
@@ -149,8 +171,23 @@ def validar(s):
     if ex:
         for j, p in enumerate(ex.get("paineis") or []):
             _checar_midia(p.get("midia"), f"exemplo painel {j + 1}", erros)
-        if ex.get("resposta") is None:
+        tex = ex.get("tipo") or tipo_topo
+        exops = ex.get("opcoes") or []
+        if any(o.get("midia") for o in exops):
+            erros.append("exemplo: opções com mídia ainda não são aceitas; use texto")
+        resp = ex.get("resposta")
+        if resp is None:
             avisos.append("exemplo sem resposta marcada")
+        else:
+            possiveis = {
+                "par": valores_par,
+                "ab": {"1", "2", "ambas_boas", "ambas_ruins"} | {o.get("id") for o in exops},
+                "escolha": {str(i + 1) for i in range(len(exops))} | {o.get("id") for o in exops} | RESPOSTAS_FIXAS["escolha"],
+                "nota": {"1", "2", "3", "4", "5"},
+            }.get(tex, set())
+            if str(resp) not in possiveis:
+                erros.append(f"exemplo: resposta '{resp}' não aparece entre as respostas da tela ({tex}); "
+                             "sem isso o exemplo não mostra qual é a certa")
     return erros, avisos
 
 

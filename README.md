@@ -18,12 +18,14 @@ Este repositório tem só código. Moldes com dados reais (e com a resposta da I
 
 | tipo | tela | respostas gravadas |
 |---|---|---|
-| `par` | dois painéis (esquerda/direita; no celular, em cima/embaixo) | `sim`, `nao`, `nao_sei` (ou os botões do molde) |
-| `ab` | duas saídas, lados sorteados por pessoa | id da opção, `ambas_boas`, `ambas_ruins` |
-| `escolha` | N opções, ordem sorteada | id da opção, `nenhum`, `nao_sei` |
+| `par` | dois painéis (esquerda/direita; no celular, em cima/embaixo) e respostas fixas em ordem fixa no rodapé | `sim`, `nao`, `nao_sei` (ou os `botoes` do molde, por exemplo mesmo / parecido / outro / não sei) |
+| `ab` | duas saídas para comparar, lados sorteados por pessoa | id da opção, `ambas_boas`, `ambas_ruins` |
+| `escolha` | N saídas diferentes para escolher a melhor, ordem sorteada | id da opção, `nenhum`, `nao_sei` |
 | `nota` | 1 a 5 com rótulos nas pontas | a nota |
 
-Todo item aceita comentário opcional. Cada painel ou opção pode ter imagem, texto ou os dois.
+Só se sorteia o que é comparação (lados do A/B, ordem das saídas da `escolha`). Respostas fixas (categorias) vão como `botoes` do `par` e ficam sempre na mesma ordem; o validador recusa `escolha` com as mesmas opções em todos os itens. O exemplo da introdução aparece marcado como exemplo, com a resposta certa destacada; o validador recusa exemplo cuja resposta não aparece na tela.
+
+Todo item tem um campo de comentário opcional à vista (desligue com `"comentario": false`). Endereços http(s) nos textos viram links que abrem em outra aba. Cada painel ou opção pode ter imagem, texto ou os dois.
 
 ## Criar um teste
 
