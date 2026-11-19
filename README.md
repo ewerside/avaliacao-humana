@@ -46,3 +46,15 @@ O formato do molde está no topo de `av/spec.py`; `moldes/exemplo-tipos.json` us
 ```bash
 python -m pytest -q
 ```
+
+## Rede da sessão do Claude
+
+Os scripts falam direto com `*.supabase.co`, `ewerside.duckdns.org` (fluxo de mídia do n8n), `*.gstatic.com` e `*.googleusercontent.com` (miniaturas). No claude.ai esses domínios ficam em Configurações > Recursos > Domínios adicionais permitidos.
+
+## Recriar em outro lugar
+
+1. Aplicar `supabase/migrations/0001_av.sql` num projeto Supabase (pelo SQL editor ou pelo MCP). Ela cria o schema `av`, as funções, o bucket `av-midia` e a política de upload com bilhete.
+2. Trocar a URL do projeto e a chave publicável em `docs/config.js` e em `av/config.py`.
+3. Ativar o GitHub Pages na pasta `docs/` do ramo `main`.
+4. Gerar o fluxo de mídia com `python n8n/gerar_fluxo_midia.py > fluxo.json`, importar no n8n, ligar a credencial do Google Drive e publicar.
+5. Rodar `python -m pytest -q` e criar `moldes/exemplo-tipos.json` para conferir o caminho inteiro.
