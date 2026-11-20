@@ -118,6 +118,19 @@ button:disabled { opacity: .55; cursor: default; }
 .erro { color: var(--nao); font-weight: 600; }
 .centro { text-align: center; }
 .oculto { display: none !important; }
+/* página inicial */
+.testes { display: grid; gap: 10px; }
+.teste h2 { margin: 0 0 4px; }
+.teste .linha { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.etiqueta { display: inline-block; font-size: 13px; font-weight: 700; border-radius: 99px; padding: 2px 10px; border: 1px solid var(--linha); }
+.etiqueta.pendente { background: var(--ex-bg); color: var(--ex); border-color: var(--ex); }
+.etiqueta.andamento { background: var(--sel); color: var(--pri); border-color: var(--pri); }
+.etiqueta.feito { color: var(--ok); border-color: var(--ok); }
+.etiqueta.fechado { color: var(--neutro); }
+.teste .acoes { margin-top: 10px; }
+.teste .acoes button { min-height: 46px; padding: 10px 16px; }
+.nomebox { display: flex; gap: 8px; }
+.nomebox button { white-space: nowrap; min-height: 48px; padding: 10px 16px; }
 </style>
 </head>
 <body>
@@ -203,6 +216,8 @@ function erroTela(msg, tentar) {
 function chaveLocal() { return 'av:sessao:' + testeSlug; }
 function salvarSessaoLocal(cod) { try { if (testeSlug) localStorage.setItem(chaveLocal(), cod); } catch (e) {} }
 function lerSessaoLocal() { try { return testeSlug ? localStorage.getItem(chaveLocal()) : null; } catch (e) { return null; } }
+function lerNome() { try { return localStorage.getItem('av:nome') || ''; } catch (e) { return ''; } }
+function salvarNome(n) { try { localStorage.setItem('av:nome', n); } catch (e) {} }
 function irParaSessao(cod) {
   sessao = cod; salvarSessaoLocal(cod);
   const u = new URL(location.href); u.searchParams.delete('t'); u.searchParams.set('s', cod);
@@ -247,10 +262,12 @@ function preCarregar(i) {
 function telaNome() {
   limpar();
   const inp = el('input', { type: 'text', maxlength: '60', autocomplete: 'nickname', placeholder: 'Ex.: Ana', 'aria-label': 'Seu nome ou apelido' });
+  inp.value = lerNome();
   const msg = el('p', { class: 'erro oculto' });
   const ir = async () => {
     const nome = inp.value.trim();
     if (!nome) { msg.textContent = 'Escreva um nome ou apelido.'; msg.classList.remove('oculto'); return; }
+    salvarNome(nome);
     bt.disabled = true;
     try {
       const r = await rpc('av_iniciar', { p_teste: testeSlug, p_nome: nome });
@@ -466,7 +483,8 @@ async function telaFim() {
     el('p', {}, 'Você respondeu ' + n + ' de ' + total + ' perguntas.'),
     D.teste.fim ? el('p', {}, D.teste.fim) : null,
     el('p', { class: 'sub' }, 'Pode fechar esta página.'),
-    el('button', { class: 'link', type: 'button', onclick: () => { atual = 0; telaPergunta(); } }, 'Revisar minhas respostas')));
+    el('button', { class: 'link', type: 'button', onclick: () => { atual = 0; telaPergunta(); } }, 'Revisar minhas respostas'),
+    el('button', { class: 'link', type: 'button', onclick: () => { const u = new URL(location.href); u.search = ''; location.href = u.toString(); } }, 'Ver outros testes')));
 }
 
 async function carregar() {
@@ -497,11 +515,72 @@ document.addEventListener('keydown', (ev) => {
   if (f) { ev.preventDefault(); f(); }
 });
 
+// ---------- página inicial (sem ?t nem ?s): todos os testes, quem concluiu e o que falta para quem digitou o nome
+function dataCurta(iso) {
+  try { return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); } catch (e) { return ''; }
+}
+async function telaInicio() {
+  limpar();
+  document.title = 'Avaliações';
+  const inp = el('input', { type: 'text', maxlength: '60', autocomplete: 'nickname', placeholder: 'Ex.: Ana', 'aria-label': 'Seu nome' });
+  inp.value = lerNome();
+  const lista = el('div', { class: 'testes' }, el('p', { class: 'sub' }, 'Carregando…'));
+  const resumo = el('p', { class: 'sub' });
+  const ver = async () => {
+    const nome = inp.value.trim();
+    salvarNome(nome);
+    lista.replaceChildren(el('p', { class: 'sub' }, 'Carregando…'));
+    let r;
+    try { r = await rpc('av_inicio', { p_nome: nome || null }); }
+    catch (e) { lista.replaceChildren(el('p', { class: 'erro' }, e.message)); return; }
+    if (!r.ok) { lista.replaceChildren(el('p', { class: 'erro' }, r.erro || 'Não deu para carregar.')); return; }
+    const ts = r.testes || [];
+    if (nome) {
+      const pend = ts.filter(t => t.aberto && t.meu && t.meu.situacao !== 'concluido').length;
+      resumo.textContent = pend ? (pend === 1 ? '1 teste pendente para você.' : pend + ' testes pendentes para você.')
+                                : 'Nenhum teste pendente para você.';
+    } else resumo.textContent = 'Escreva seu nome para ver o que falta para você.';
+    lista.replaceChildren(...(ts.length ? ts.map(cartaoTeste) : [el('p', { class: 'sub' }, 'Nenhum teste por enquanto.')]));
+  };
+  const bt = el('button', { class: 'pri', type: 'button', onclick: ver }, 'Ver');
+  inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') ver(); });
+  app.append(
+    el('h1', {}, 'Avaliações'),
+    el('div', { class: 'card' }, el('label', {}, el('p', {}, 'Seu nome (o mesmo que você usa nos testes)')),
+      el('div', { class: 'nomebox' }, inp, bt), resumo),
+    lista);
+  ver();
+}
+function cartaoTeste(t) {
+  const meu = t.meu ? t.meu.situacao : null;
+  const etq = !t.aberto ? el('span', { class: 'etiqueta fechado' }, 'Encerrado')
+    : meu === 'concluido' ? el('span', { class: 'etiqueta feito' }, 'Você concluiu')
+    : meu === 'em_andamento' ? el('span', { class: 'etiqueta andamento' }, 'Você começou')
+    : meu === 'pendente' ? el('span', { class: 'etiqueta pendente' }, 'Pendente para você') : null;
+  const quem = (t.concluiram || []);
+  const info = [t.telas ? t.telas + ' telas' : null, t.tempo_min ? 'uns ' + t.tempo_min + ' min' : null,
+                t.projeto ? 'projeto ' + t.projeto : null, 'criado em ' + dataCurta(t.criado_em)].filter(Boolean).join(' · ');
+  let acao = null;
+  if (t.aberto && meu !== 'concluido') {
+    const u = new URL(location.href); u.search = '';
+    if (meu === 'em_andamento' && t.meu.sessao) u.searchParams.set('s', t.meu.sessao); else u.searchParams.set('t', t.teste);
+    acao = el('div', { class: 'acoes' }, el('button', { class: meu ? 'pri' : '', type: 'button',
+      onclick: () => { location.href = u.toString(); } }, meu === 'em_andamento' ? 'Continuar' : 'Responder'));
+  }
+  return el('div', { class: 'card teste' },
+    el('div', { class: 'linha' }, el('h2', {}, t.titulo || t.teste), etq),
+    el('p', { class: 'sub' }, info),
+    el('p', {}, quem.length ? 'Concluíram: ' + quem.map(q => q.nome + ' (' + dataCurta(q.em) + ')').join(', ')
+                            : 'Ninguém concluiu ainda.',
+      t.em_andamento ? el('span', { class: 'sub' }, ' · ' + t.em_andamento + (t.em_andamento === 1 ? ' pessoa respondendo' : ' pessoas respondendo')) : null),
+    acao);
+}
+
 // ---------- início
 if (!sessao && testeSlug) sessao = lerSessaoLocal() || '';
 if (sessao) carregar();
 else if (testeSlug) telaNome();
-else erroTela('Link incompleto. Peça o link certo a quem enviou o teste.');
+else telaInicio();
 })();
 </script>
 </body>

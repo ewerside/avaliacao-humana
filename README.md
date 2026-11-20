@@ -7,12 +7,13 @@ Este repositório tem só código. Moldes com dados reais (e com a resposta da I
 ## Como funciona
 
 - **Página** (`docs/`, publicada no GitHub Pages): HTML estático, sem dependências. Fala com o Supabase só por funções RPC, com a chave publicável.
-- **Banco** (`supabase/migrations/`): tabelas no schema `av`, fora da API, com RLS ligado e sem política. O navegador só chama `av_carregar`, `av_iniciar`, `av_confirmar`, `av_responder` e `av_finalizar`, que devolvem texto, imagens e botões, nunca os campos ocultos (resposta da IA, gabarito, origem de cada opção).
+- **Banco** (`supabase/migrations/`): tabelas no schema `av`, fora da API, com RLS ligado e sem política. O navegador só chama `av_inicio`, `av_carregar`, `av_iniciar`, `av_confirmar`, `av_responder` e `av_finalizar`, que devolvem texto, imagens e botões, nunca os campos ocultos (resposta da IA, gabarito, origem de cada opção).
 - **Embaralhamento no servidor**, por pessoa: ordem dos itens, repetições a pelo menos N posições da original, lado do A/B e ordem das opções. A página devolve só o que estava na tela (por exemplo, "a opção 2"); o servidor traduz.
 - **Admin sem chave secreta**: `python -m av token` grava um token no `.env` e imprime o SQL que registra o hash dele (rodado pelo MCP do Supabase). Vale até 24 h. As funções de criação, links e exportação exigem esse token.
 - **Imagens**: bucket público `av-midia` com caminho aleatório, 1.200 px no lado maior mais miniatura de 400 px, JPEG sem EXIF. O upload só é aceito em caminho com bilhete emitido pelo admin.
 - **Mídia que a sessão não alcança** (Google Drive, sites fora da lista de domínios): o fluxo do n8n "Avaliação humana · mídia" busca os bytes, depois de conferir o token no Supabase.
-- **Nomes de pessoas** ficam só em `av.avaliadores`. A exportação usa o código do avaliador (`av-xxxxxx`).
+- **Página inicial** (a página sem `?t` nem `?s`): lista os testes abertos e encerrados, quem já concluiu cada um (nome e data) e quantos estão respondendo; quem digita o nome vê o que está pendente para si e continua de onde parou. Lê só `public.av_inicio`. Testes de exemplo ficam fora com `av.testes.na_inicial = false`. O nome é comparado sem acento nem maiúsculas: quem responde com outro nome aparece como outra pessoa.
+- **Nomes de pessoas** ficam só em `av.avaliadores`; a única exceção é a página inicial, que mostra o nome de quem concluiu (decisão do Ewerton, 20/11/2026). A exportação usa o código do avaliador (`av-xxxxxx`).
 
 ## Tipos de pergunta
 
@@ -55,7 +56,7 @@ Os scripts falam direto com `*.supabase.co`, `ewerside.duckdns.org` (fluxo de m�
 
 ## Recriar em outro lugar
 
-1. Aplicar `supabase/migrations/0001_av.sql` num projeto Supabase (pelo SQL editor ou pelo MCP). Ela cria o schema `av`, as funções, o bucket `av-midia` e a política de upload com bilhete.
+1. Aplicar `supabase/migrations/0001_av.sql` e depois `0002_inicio.sql` num projeto Supabase (pelo SQL editor ou pelo MCP). Ela cria o schema `av`, as funções, o bucket `av-midia` e a política de upload com bilhete.
 2. Trocar a URL do projeto e a chave publicável em `docs/config.js` e em `av/config.py`.
 3. Ativar o GitHub Pages na pasta `docs/` do ramo `main`.
 4. Gerar o fluxo de mídia com `python n8n/gerar_fluxo_midia.py > fluxo.json`, importar no n8n, ligar a credencial do Google Drive e publicar.
